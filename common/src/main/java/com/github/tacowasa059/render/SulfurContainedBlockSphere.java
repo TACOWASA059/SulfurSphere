@@ -2,7 +2,10 @@ package com.github.tacowasa059.render;
 
 import com.mojang.blaze3d.platform.Transparency;
 import com.github.tacowasa059.mixin.BlockModelRenderStateAccessor;
+import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.color.block.BlockTintSource;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
@@ -10,6 +13,7 @@ import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -54,6 +58,37 @@ public final class SulfurContainedBlockSphere {
             wrapped.add(new SphereBlockStateModelPart(part, computeBounds(part)));
         }
         accessor.sulfursphere$setModelParts(wrapped);
+    }
+
+    /**
+     * Re-computes the contained block's tint layers using the biome at the Sulfur Cube's position.
+     *
+     * <p>The contained block is set up with {@code BlockDisplayContext}, so its tints come from the
+     * biome-independent {@code color(state)} (e.g. {@code GrassColor.getDefaultColor()}); a grass
+     * block carried inside the cube therefore renders with the flat default colour. Worse, the
+     * rebuild path above clears the tint layers entirely, which leaves the grey grayscale grass
+     * texture untinted. Recomputing the layers here with {@code colorInWorld} restores a proper,
+     * biome-correct colour for grass, leaves, water and the like.</p>
+     */
+    public static void applyBiomeTints(BlockModelRenderState containedBlock, BlockState state, BlockAndTintGetter level, BlockPos pos) {
+        if (containedBlock == null || state == null || level == null || pos == null) {
+            return;
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null) {
+            return;
+        }
+
+        List<BlockTintSource> sources = minecraft.getBlockColors().getTintSources(state);
+        if (sources.isEmpty()) {
+            return;
+        }
+
+        IntList tintLayers = containedBlock.tintLayers();
+        tintLayers.clear();
+        for (BlockTintSource source : sources) {
+            tintLayers.add(source.colorInWorld(state, level, pos));
+        }
     }
 
     private static SphereBlockStateModelPart.Bounds computeBounds(BlockStateModelPart part) {

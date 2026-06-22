@@ -1,6 +1,7 @@
 package com.github.tacowasa059.mixin;
 
 import com.github.tacowasa059.render.SulfurContainedBlockSphere;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.BlockModelResolver;
 import net.minecraft.client.renderer.entity.ItemFrameRenderer;
 import net.minecraft.client.renderer.entity.SulfurCubeRenderer;
@@ -46,5 +47,16 @@ public class SulfurCubeRendererMixin {
             }
         }
         SulfurContainedBlockSphere.apply(state.containedBlock, blockState);
+
+        // Tint the contained block with the biome colour at the cube's position so that grass blocks
+        // (and other biome-tinted blocks) are coloured instead of showing their grey grayscale texture.
+        if (blockState != null && sulfurCube.level() instanceof BlockAndTintGetter tintGetter) {
+            SulfurContainedBlockSphere.applyBiomeTints(
+                    state.containedBlock,
+                    blockState,
+                    tintGetter,
+                    sulfurCube.blockPosition()
+            );
+        }
     }
 }

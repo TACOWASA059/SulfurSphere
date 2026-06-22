@@ -4,7 +4,6 @@ import com.github.tacowasa059.render.SulfurCubeParts;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.model.geom.ModelPart;
-import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -33,8 +32,6 @@ public class CubeMixin {
                               CallbackInfo ci) {
 
         if (!shouldReplace()) return;
-
-        Matrix4f matrix = pose.pose();
 
         float cx = (minX + maxX) / 32f;
         float cy = (minY + maxY) / 32f;
@@ -68,16 +65,45 @@ public class CubeMixin {
                     float[] v3 = sampleSphereVertex(p00, p10, p11, p01, s2, t2, cx, cy, cz, rx, ry, rz);
                     float[] v4 = sampleSphereVertex(p00, p10, p11, p01, s2, t1, cx, cy, cz, rx, ry, rz);
 
-                    // ModelPart compile path is quad-based: emit 4 vertices per patch.
-                    add(builder, matrix, v1, light, overlay, color);
-                    add(builder, matrix, v2, light, overlay, color);
-                    add(builder, matrix, v3, light, overlay, color);
-                    add(builder, matrix, v4, light, overlay, color);
+                    // The body sheet is drawn with a no-cull, depth-writing translucent pipeline. Without
+                    // culling we emit both the near and far halves of the sphere, and the per-quad sort
+                    // across the hundreds of patches then blends them inconsistently - that double layer
+                    // is the "bugged" opacity on the outer shell. Skip the patches that face away from the
+                    // camera so a single clean translucent layer is drawn.
+                    if (isBackFacing(pose, v1, v2, v3, v4)) {
+                        continue;
+                    }
+
+                    // Quad-based compile path: emit 4 vertices per patch, preserving the original face
+                    // winding (s,t): (lo,lo)->(hi,lo)->(hi,hi)->(lo,hi), i.e. v1 -> v4 -> v3 -> v2, the
+                    // same winding the contained-block sphere keeps.
+                    add(builder, pose, v1, light, overlay, color);
+                    add(builder, pose, v4, light, overlay, color);
+                    add(builder, pose, v3, light, overlay, color);
+                    add(builder, pose, v2, light, overlay, color);
                 }
             }
         }
 
         ci.cancel();
+    }
+
+    // Patch faces away from the camera (and can be skipped). The pose is camera-relative - the camera
+    // sits at the origin - so a patch faces the viewer when its outward normal points back toward the
+    // origin, i.e. dot(normal, position) < 0. This depends only on the camera position, so it is correct
+    // regardless of camera orientation. Each vertex array is [x, y, z, u, v, nx, ny, nz].
+    @Unique
+    private static boolean isBackFacing(PoseStack.Pose pose, float[] a, float[] b, float[] c, float[] d) {
+        float mx = (a[0] + b[0] + c[0] + d[0]) * 0.25f;
+        float my = (a[1] + b[1] + c[1] + d[1]) * 0.25f;
+        float mz = (a[2] + b[2] + c[2] + d[2]) * 0.25f;
+        float nx = a[5] + b[5] + c[5] + d[5];
+        float ny = a[6] + b[6] + c[6] + d[6];
+        float nz = a[7] + b[7] + c[7] + d[7];
+
+        Vector3f posCam = pose.pose().transformPosition(mx, my, mz, new Vector3f());
+        Vector3f normCam = pose.transformNormal(nx, ny, nz, new Vector3f());
+        return normCam.dot(posCam) > 0.0f;
     }
 
     // [x, y, z, u, v]
@@ -155,13 +181,17 @@ public class CubeMixin {
 
     @Unique
     private static void add(VertexConsumer builder,
-                            Matrix4f matrix,
+                            PoseStack.Pose pose,
                             float[] vertex,
                             int light,
                             int overlay,
                             int color) {
 
-        Vector3f pos = matrix.transformPosition(vertex[0], vertex[1], vertex[2], new Vector3f());
+        Vector3f pos = pose.pose().transformPosition(vertex[0], vertex[1], vertex[2], new Vector3f());
+        // Transform the model-space sphere normal into the pose's space (matching vanilla
+        // ModelPart$Cube.compile), otherwise the shading is computed against un-rotated normals and the
+        // lit side does not follow the world light direction when the cube turns or squishes.
+        Vector3f normal = pose.transformNormal(vertex[5], vertex[6], vertex[7], new Vector3f());
 
         builder.addVertex(
                 pos.x(), pos.y(), pos.z(),
@@ -169,7 +199,7 @@ public class CubeMixin {
                 vertex[3], vertex[4],
                 overlay,
                 light,
-                vertex[5], vertex[6], vertex[7]
+                normal.x(), normal.y(), normal.z()
         );
     }
 
