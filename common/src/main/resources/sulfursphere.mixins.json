@@ -9,6 +9,7 @@
     "CubeMixin",
     "ModelPartAccessor",
     "SulfurCubeModelMixin",
+    "SulfurCubeRenderStateMixin",
     "SulfurCubeRendererMixin"
   ],
   "server": [],

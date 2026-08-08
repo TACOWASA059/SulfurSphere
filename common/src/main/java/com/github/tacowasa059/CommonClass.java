@@ -1,5 +1,6 @@
 package com.github.tacowasa059;
 
+import com.github.tacowasa059.config.SulfurSphereConfig;
 import com.github.tacowasa059.platform.Services;
 
 // This class is part of the common project meaning it is shared between all supported loaders. The actual feature of
@@ -9,6 +10,7 @@ import com.github.tacowasa059.platform.Services;
 public class CommonClass {
 
     public static void init() {
+        SulfurSphereConfig.load();
         Constants.LOG.info("{} loaded on {} ({} environment).",
                 Constants.MOD_NAME,
                 Services.PLATFORM.getPlatformName(),

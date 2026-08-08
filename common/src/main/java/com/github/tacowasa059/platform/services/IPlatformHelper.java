@@ -1,5 +1,7 @@
 package com.github.tacowasa059.platform.services;
 
+import java.nio.file.Path;
+
 public interface IPlatformHelper {
 
     /**
@@ -23,6 +25,13 @@ public interface IPlatformHelper {
      * @return True if in a development environment, false otherwise.
      */
     boolean isDevelopmentEnvironment();
+
+    /**
+     * Gets the directory mod configuration files are stored in.
+     *
+     * @return The config directory of the current platform.
+     */
+    Path getConfigDirectory();
 
     /**
      * Gets the name of the environment type as a string.
