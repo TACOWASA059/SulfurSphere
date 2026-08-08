@@ -1,6 +1,8 @@
 plugins {
     id 'multiloader-loader'
     id 'net.fabricmc.fabric-loom'
+    // Applied last: it uploads the jar tasks the plugins above register
+    id 'multiloader-publish'
 }
 dependencies {
     minecraft("com.mojang:minecraft:${minecraft_version}")

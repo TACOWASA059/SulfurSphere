@@ -1,0 +1,143 @@
+// Upload template - publishes a loader project's jar to Modrinth and CurseForge.
+//
+// Setup
+//   1. Fill in the project ids in gradle.properties: modrinth_id / curseforge_id
+//      (Modrinth needs the project *id*, not the slug - both are on the project page)
+//   2. Set the tokens as environment variables: MODRINTH_TOKEN / CURSEFORGE_TOKEN
+//   3. Write the release notes in CHANGELOG.md (optional - a one line default is used without it)
+//
+// Publishing
+//   ./gradlew build publishMods              everything, both loaders and both sites
+//   ./gradlew :fabric:modrinth               one site, one loader
+//   ./gradlew :neoforge:publishCurseForge
+//
+// CurseForge uploads go through net.darkhax.curseforgegradle rather than the older
+// com.matthewprenger.cursegradle, which does not run on Gradle 9.
+//
+// Apply this last in a loader project so the jar task it uploads already exists.
+
+import net.darkhax.curseforgegradle.TaskPublishCurseForge
+
+plugins {
+    id 'com.modrinth.minotaur'
+    id 'net.darkhax.curseforgegradle'
+}
+
+def loader = project.name
+// Display name of the loader as the existing uploads spell it
+def loaderName = ['fabric': 'Fabric', 'neoforge': 'NeoForge'].getOrDefault(loader, loader.capitalize())
+// Both loaders publish the `jar` task's output: this Loom version remaps in place instead of adding
+// the separate remapJar task older guides upload. Its file name is already
+// {mod_id}-{loader}-{minecraft_version}-{version}.jar, which is what both sites list today.
+def uploadJar = tasks.getByName('jar')
+def supportedVersions = supported_versions.split(',').collect { it.trim() }.findAll { it }
+// Only this version's section of the changelog is uploaded - "## 1.1.0" up to the next heading -
+// so old entries do not end up attached to a new release.
+def changelogFile = rootProject.file('CHANGELOG.md')
+def releaseNotes = "${mod_name} ${version} for Minecraft ${minecraft_version}." as String
+if (changelogFile.exists()) {
+    def section = changelogFile.text =~ /(?ms)^##\s+\Q${version}\E\s*\n(.*?)(?=^##\s|\z)/
+    releaseNotes = section.find() ? section.group(1).trim() : changelogFile.text.trim()
+}
+
+// The project page text: the README with every excluded block taken out.
+def modrinthBody = { File readme ->
+    readme.text.replaceAll(/(?s)<!--\s*modrinth_exclude\.start\s*-->.*?<!--\s*modrinth_exclude\.end\s*-->\s*/, '').trim()
+}
+
+// Fails early with a readable message instead of an auth error halfway through an upload.
+def requireCredentials = { String projectId, String idProperty, String tokenVariable ->
+    if (!projectId) {
+        throw new GradleException("${idProperty} is not set in gradle.properties - fill it in before publishing.")
+    }
+    if (!System.getenv(tokenVariable)) {
+        throw new GradleException("The ${tokenVariable} environment variable is not set.")
+    }
+}
+
+// Minotaur reads $MODRINTH_TOKEN by itself, so `token` is deliberately left alone here.
+modrinth {
+    projectId = modrinth_id
+    // Same shape as the versions already published: "Fabric26.2-1.0.1" / "NeoForge26.2-1.0.1".
+    // Modrinth also refuses two versions sharing a number, which the loader prefix takes care of.
+    versionNumber = "${loaderName}${minecraft_version}-${version}"
+    versionName = "${mod_name} ${version}"
+    versionType = release_type
+    uploadFile = uploadJar
+    gameVersions = supportedVersions
+    loaders = [loader]
+    changelog = releaseNotes
+    // `gradlew :fabric:modrinthSyncBody` replaces the project page with README.md. It is a project
+    // level change, so running it for one loader is enough. Anything wrapped in
+    // <!-- modrinth_exclude.start --> ... <!-- modrinth_exclude.end --> is dropped here rather than
+    // left to the plugin, so what gets sent is exactly what `publishInfo` prints - that is how the
+    // link to the Japanese README is kept off the mod page.
+    def readme = rootProject.file('README.md')
+    if (readme.exists()) {
+        syncBodyFrom = modrinthBody(readme)
+    }
+    if (loader == 'fabric') {
+        dependencies {
+            required.project 'fabric-api'
+        }
+    }
+}
+
+tasks.named('modrinth') {
+    group = 'publishing'
+    dependsOn uploadJar
+    doFirst {
+        requireCredentials(modrinth_id, 'modrinth_id', 'MODRINTH_TOKEN')
+    }
+}
+
+tasks.register('publishCurseForge', TaskPublishCurseForge) {
+    group = 'publishing'
+    description = "Uploads the ${loader} jar to CurseForge."
+    dependsOn uploadJar
+    apiToken = System.getenv('CURSEFORGE_TOKEN')
+    doFirst {
+        requireCredentials(curseforge_id, 'curseforge_id', 'CURSEFORGE_TOKEN')
+    }
+
+    // The placeholder id keeps configuration working with an unfilled template; the doFirst above
+    // stops the task long before the id is ever used.
+    def mainFile = upload(curseforge_id ?: '000000', uploadJar)
+    mainFile.releaseType = release_type
+    mainFile.changelog = releaseNotes
+    mainFile.changelogType = 'markdown'
+    mainFile.addModLoader(loader)
+    supportedVersions.each { mainFile.addGameVersion(it) }
+    // CurseForge also wants an environment tag next to the Minecraft version and the loader,
+    // and rejects the upload with error 1021 without one.
+    curseforge_environments.split(',').collect { it.trim() }.findAll { it }.each {
+        mainFile.addGameVersion(it)
+    }
+    if (loader == 'fabric') {
+        mainFile.addRequirement('fabric-api')
+    }
+    // Add this if CurseForge rejects an auto-detected tag (a Java version it does not know yet):
+    // disableVersionDetection()
+}
+
+// Dry check of what an upload would send, without touching either site.
+tasks.register('publishInfo') {
+    group = 'publishing'
+    description = "Prints what publishing the ${loader} jar would send to Modrinth and CurseForge."
+    doLast {
+        logger.lifecycle("""
+            ${loaderName} upload
+              file            : ${uploadJar.archiveFileName.get()}
+              minecraft       : ${supportedVersions.join(', ')}
+              release type    : ${release_type}
+              modrinth        : ${modrinth_id} / version ${loaderName}${minecraft_version}-${version} "${mod_name} ${version}"
+              curseforge      : ${curseforge_id}
+              fabric api dep  : ${loader == 'fabric'}
+              changelog       :
+            ${releaseNotes}
+
+            Project page body that modrinthSyncBody would send:
+            ${rootProject.file('README.md').exists() ? modrinthBody(rootProject.file('README.md')) : '(no README.md)'}
+        """.stripIndent())
+    }
+}

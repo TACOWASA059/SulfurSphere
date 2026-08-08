@@ -1,8 +1,12 @@
+<!-- modrinth_exclude.start -->
 [日本語](README.ja.md)
+<!-- modrinth_exclude.end -->
 
 # SulfurSphere
 
 A Minecraft mod that makes the **Sulfur Cube** — and the block it carries — render as a **sphere** instead of a cube.
+
+![A Sulfur Cube rendered as a sphere](https://cdn.modrinth.com/data/cached_images/17aa53f0d2b11790231641cf5edc17108999fbf3_0.webp)
 
 ## Features
 
