@@ -34,7 +34,7 @@ Both are client commands, so they work on any server, single player or multiplay
 
 ## Requirements
 
-- **Minecraft:** 26.2
+- **Minecraft:** 26.3
 - **Fabric:** requires [Fabric API](https://modrinth.com/mod/fabric-api)
 - **NeoForge:** no additional mods required
 - **Author:** TACOWASA059

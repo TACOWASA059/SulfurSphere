@@ -2,6 +2,7 @@
 
 ## 1.1.0
 
+- Ported to Minecraft 26.3
 - Added rolling: a Sulfur Cube that carries a block now rolls like a ball in the direction it travels
   - A Sulfur Cube with nothing inside does not roll
   - The turn matches the distance moved, so the sphere does not slide across the ground

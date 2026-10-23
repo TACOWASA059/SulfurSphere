@@ -53,7 +53,7 @@ public final class SphereRoll {
     /** Rotates the pose around the sphere's centre by the given world-space roll. */
     public static void apply(PoseStack poseStack, Quaternionf worldRoll, float bodyRot) {
         poseStack.translate(0.0F, CENTRE_Y, 0.0F);
-        poseStack.mulPose(RollMath.toModelSpace(worldRoll, bodyRot));
+        poseStack.rotate(RollMath.toModelSpace(worldRoll, bodyRot));
         poseStack.translate(0.0F, -CENTRE_Y, 0.0F);
     }
 

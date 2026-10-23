@@ -32,7 +32,7 @@
 
 ## 動作環境
 
-- **Minecraft:** 26.2
+- **Minecraft:** 26.3
 - **Fabric:** [Fabric API](https://modrinth.com/mod/fabric-api) が必要
 - **NeoForge:** 前提 MOD なし
 - **作者:** TACOWASA059

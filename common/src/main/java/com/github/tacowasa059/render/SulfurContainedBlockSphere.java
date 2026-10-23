@@ -137,7 +137,7 @@ public final class SulfurContainedBlockSphere {
                 particle,
                 Transparency.TRANSLUCENT,
                 -1,
-                true,
+                null,
                 0
         );
         return new SphereGeneratedModelPart(true, particle, materialInfo.flags(), materialInfo);
